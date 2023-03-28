@@ -1,0 +1,192 @@
+version: '3.8'
+
+services:
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: portainer
+    networks:
+      - mongors-network
+    ports:
+      - "9443:9443"
+  traefik:
+    image: traefik:latest
+    container_name: traefik
+    restart: always
+    networks:
+      - mongors-network
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedByDefault=false"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "80:80"
+      - "8090:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik-config:/etc/traefik
+      - "./users_credentials:/users_credentials:ro"
+    labels:
+      - "traefik.http.routers.traefik.rule=Host(`kartaca.localhost`)"
+      - "traefik.http.routers.traefik.entrypoints=web"
+      - "traefik.docker.network=mongors-network"
+      
+  grafana:
+    container_name: grafana
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`kartaca.localhost`) && Path(`/grafana`)"
+      - "traefik.http.routers.grafana.entrypoints=web"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+    image: grafana/grafana:latest
+    networks:
+      - mongors-network
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards  
+    environment:
+      - GF_SERVER_ROOT_URL=http://localhost:3000
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+    restart: always
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    networks:
+      - mongors-network
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    restart: always
+  cadvisor:
+    image: google/cadvisor:latest
+    container_name: cadvisor
+    networks:
+      - mongors-network
+    ports:
+      - "8181:8181"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:rw
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    restart: always  
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    networks:
+      - mongors-network
+    ports:
+      - "9100:9100"
+    restart: always
+  goapp:
+      container_name: go-app
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.goapp.rule=Host(`kartaca.localhost`) && Path(`/goapp`)"
+        - "traefik.http.routers.goapp.entrypoints=web"
+        - "traefik.http.services.goapp.loadbalancer.server.port=80"
+        - "traefik.http.middlewares.stripprefix-go.stripprefix.prefixes=/goapp"
+        - "traefik.http.routers.goapp.middlewares=stripprefix-go"
+        - "traefik.http.services.goapp.loadbalancer.server.port=5555"
+      build: ./goapp
+      ports:
+        - "5555:5555"
+      networks:
+        - mongors-network
+      depends_on:
+        - mongo1
+      environment:
+        - MONGO_HOST=mongo1
+        - MONGO_DB=stajdb
+      restart: on-failure
+  pythonapp:
+    container_name: python-app
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.pythonapp.rule=Host(`kartaca.localhost`) && Path(`/pythonapp`)"
+      - "traefik.http.routers.pythonapp.entrypoints=web"
+      - "traefik.http.services.pythonapp.loadbalancer.server.port=80"
+      - "traefik.http.middlewares.stripprefix-python.stripprefix.prefixes=/pythonapp"
+      - "traefik.http.routers.pythonapp.middlewares=stripprefix-python"
+      - "traefik.http.services.pythonapp.loadbalancer.server.port=4444"
+    build: ./pythonapp
+    ports:
+      - "4444:4444"
+    depends_on:
+      - mongo1
+    environment:
+      - MONGO_HOST=mongo1
+      - MONGO_DB=stajdb
+    networks:
+      - mongors-network
+  mongo1:
+    container_name: mongo1
+    image: mongo:4.4
+    volumes:
+      - ~/mongors/data1:/data/db
+      - ./rs-init.sh:/scripts/rs-init.sh
+    networks:
+      - mongors-network
+    ports:
+      - 27021:27017
+    links:
+      - mongo2
+      - mongo3
+    restart: always
+    entrypoint: [ "/usr/bin/mongod", "--bind_ip_all", "--replSet", "dbrs" ]
+  mongo2:
+    container_name: mongo2
+    image: mongo:4.4
+    volumes:
+      - ~/mongors/data2:/data/db
+    networks:
+      - mongors-network
+    ports:
+      - 27022:27017
+    restart: always
+    entrypoint: [ "/usr/bin/mongod", "--bind_ip_all", "--replSet", "dbrs" ]
+  mongo3:
+    container_name: mongo3
+    image: mongo:4.4
+    volumes:
+      - ~/mongors/data3:/data/db
+    networks:
+      - mongors-network
+    ports:
+      - 27023:27017
+    restart: always
+    entrypoint: [ "/usr/bin/mongod", "--bind_ip_all", "--replSet", "dbrs" ]
+
+  init-mongo:
+    container_name: init-mongo
+    image: mongo:4.4
+    volumes:
+      - ./rs-init.sh:/docker-entrypoint-initdb.d/rs-init.sh
+    networks:
+      - mongors-network
+    depends_on:
+      - mongo1
+      - mongo2
+      - mongo3
+    environment:
+      MONGO_INITDB_DATABASE: admin
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: root
+    restart: on-failure
+
+networks:
+  mongors-network:
+    driver: bridge
+volumes:
+  grafana-data:
+    

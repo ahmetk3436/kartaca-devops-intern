@@ -1,0 +1,42 @@
+# traefik.yml
+
+api:
+  dashboard: true
+
+entryPoints:
+  http:
+    address: ":80"
+
+providers:
+  docker:
+    exposedByDefault: false
+
+http:
+  routers:
+    pythonapp:
+      rule: "Host(`kartaca.localhost`) && PathPrefix(`/pythonapp`)"
+      service: "pythonapp-service"
+
+    goapp:
+      rule: "Host(`kartaca.localhost`) && PathPrefix(`/goapp`)"
+      service: "goapp-service"
+
+    grafana:
+      rule: "Host(`kartaca.localhost`) && Path(`/grafana`)"
+      service: "grafana-service"
+
+  services:
+    pythonapp-service:
+      loadBalancer:
+        servers:
+          - url: "http://localhost:4444/staj"
+
+    goapp-service:
+      loadBalancer:
+        servers:
+          - url: "http://localhost:5555/staj"
+
+    grafana-service:
+      loadBalancer:
+        servers:
+          - url: "http://localhost:3000"

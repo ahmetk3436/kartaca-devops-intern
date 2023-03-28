@@ -1,0 +1,13 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "14282",
+    "title": "cAdvisor Full",
+    "tags": [ "prometheus", "cadvisor" ],
+    "timezone": "browser",
+    "schemaVersion": 22,
+    "version": 0
+  },
+  "folderId": 0,
+  "overwrite": false
+}

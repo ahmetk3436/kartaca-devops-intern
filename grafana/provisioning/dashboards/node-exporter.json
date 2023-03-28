@@ -1,0 +1,13 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "1860",
+    "title": "Node Exporter Full",
+    "tags": [ "prometheus", "node_exporter" ],
+    "timezone": "browser",
+    "schemaVersion": 22,
+    "version": 0
+  },
+  "folderId": 0,
+  "overwrite": false
+}
