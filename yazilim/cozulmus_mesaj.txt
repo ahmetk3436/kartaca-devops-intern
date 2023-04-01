@@ -1,0 +1,7 @@
+{
+    "type": "REGISTER",
+    "name": "your name",
+    "surname": "your surname",
+    "email": "your email address",
+    "passwordHash": "aaa"
+}. Don't forget to register for your account! Your passwordHash: 50229tq1w064xt8v13rrrwrau56957r0717tq231t1vvz1r89452vu5681800139
